@@ -24,10 +24,15 @@ class ImportDutyConfig:
 
 @dataclass
 class AppConfig:
+    # LLM provider: "groq" (free) or "anthropic" (paid)
+    llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "groq").lower())
+    groq_api_key: str = field(default_factory=lambda: os.getenv("GROQ_API_KEY", ""))
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     wine_searcher_api_key: str = field(default_factory=lambda: os.getenv("WINE_SEARCHER_API_KEY", ""))
     database_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///wine_intelligence.db"))
     reports_dir: str = field(default_factory=lambda: os.getenv("REPORTS_DIR", "reports_output"))
+    # Model names per provider
+    groq_model: str = "llama-3.3-70b-versatile"
     claude_model: str = "claude-sonnet-4-6"
     default_currency: str = "CAD"
     default_bottle_size_ml: int = 750
@@ -35,6 +40,14 @@ class AppConfig:
     cad_eur_rate: float = field(default_factory=lambda: float(os.getenv("CAD_EUR_RATE", "1.48")))
     cad_gbp_rate: float = field(default_factory=lambda: float(os.getenv("CAD_GBP_RATE", "1.73")))
     import_duties: ImportDutyConfig = field(default_factory=ImportDutyConfig)
+
+    @property
+    def active_model(self) -> str:
+        return self.groq_model if self.llm_provider == "groq" else self.claude_model
+
+    @property
+    def active_api_key(self) -> str:
+        return self.groq_api_key if self.llm_provider == "groq" else self.anthropic_api_key
 
     def fx_rate(self, from_currency: str) -> float:
         """Return CAD per 1 unit of from_currency."""

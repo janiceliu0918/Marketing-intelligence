@@ -10,9 +10,9 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 from tenacity import retry, stop_after_attempt, wait_exponential
-import anthropic
 
 from wine_agent.config.settings import config
+from wine_agent.agent.llm_client import simple_completion
 from wine_agent.models.wine import WineClassification
 
 logger = logging.getLogger(__name__)
@@ -59,12 +59,11 @@ def _clean_html(html: str, max_chars: int = 6000) -> str:
 
 
 def _llm_extract_classification(raw_text: str, wine_name: str, vintage: Optional[int]) -> WineClassification:
-    """Ask Claude to parse winery page text into a structured WineClassification."""
-    if not config.anthropic_api_key:
-        logger.warning("No ANTHROPIC_API_KEY — skipping LLM extraction from winery page")
+    """Use the configured LLM (Groq or Anthropic) to parse winery page text."""
+    if not config.active_api_key:
+        logger.warning("No API key configured — skipping LLM winery extraction")
         return WineClassification()
 
-    client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     prompt = f"""You are a Master of Wine analysing winery technical documentation.
 
 Wine being researched: {wine_name} {vintage or ''}
@@ -89,13 +88,8 @@ WINERY PAGE TEXT:
 Respond ONLY with the JSON object, no explanation."""
 
     try:
-        message = client.messages.create(
-            model=config.claude_model,
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
-        )
         import json
-        raw_json = message.content[0].text.strip()
+        raw_json = simple_completion(prompt, max_tokens=512).strip()
         # Strip markdown code fences if present
         raw_json = re.sub(r"^```[a-z]*\n?", "", raw_json)
         raw_json = re.sub(r"\n?```$", "", raw_json)
