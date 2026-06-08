@@ -255,7 +255,7 @@ _MD_TEMPLATE = Template("""# Bonvin Buyer's Brief
 """)
 
 
-def export_markdown(report: WineIntelligenceReport, output_dir: str | None = None) -> str:
+def export_markdown(report: WineIntelligenceReport, output_dir: Optional[str] = None) -> str:
     """Render and save a Markdown buyer's brief. Returns the file path."""
     cls = report.classification
     lc = report.landed_cost
@@ -281,7 +281,7 @@ def export_markdown(report: WineIntelligenceReport, output_dir: str | None = Non
     return str(filename)
 
 
-def export_excel(report: WineIntelligenceReport, output_dir: str | None = None) -> str:
+def export_excel(report: WineIntelligenceReport, output_dir: Optional[str] = None) -> str:
     """Export the report as an Excel workbook for Power BI ingestion."""
     try:
         import openpyxl
@@ -354,7 +354,7 @@ def export_excel(report: WineIntelligenceReport, output_dir: str | None = None) 
     return str(filename)
 
 
-def export_json(report: WineIntelligenceReport, output_dir: str | None = None) -> str:
+def export_json(report: WineIntelligenceReport, output_dir: Optional[str] = None) -> str:
     """Dump the report as JSON for downstream consumption."""
     out_dir = Path(output_dir or config.reports_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

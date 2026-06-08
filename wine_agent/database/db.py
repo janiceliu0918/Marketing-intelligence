@@ -3,6 +3,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from wine_agent.models.wine import WineIntelligenceReport
 from wine_agent.config.settings import config
 
@@ -89,7 +90,7 @@ def save_report(report: WineIntelligenceReport) -> None:
     conn.close()
 
 
-def get_price_history(wine_name: str, vintage: int | None = None) -> list[dict]:
+def get_price_history(wine_name: str, vintage: Optional[int] = None) -> list[dict]:
     conn = _get_connection()
     if vintage:
         rows = conn.execute(

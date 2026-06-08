@@ -1,6 +1,6 @@
 """Data cleaning and normalisation utilities for scraped wine data."""
 import re
-from typing import Optional
+from typing import Optional, Union
 import pandas as pd
 
 
@@ -11,7 +11,7 @@ def normalise_wine_name(raw: str) -> str:
     return name
 
 
-def normalise_vintage(raw: str | int | None) -> Optional[int]:
+def normalise_vintage(raw: Union[str, int, None]) -> Optional[int]:
     """Extract a 4-digit vintage year from various raw inputs."""
     if raw is None:
         return None

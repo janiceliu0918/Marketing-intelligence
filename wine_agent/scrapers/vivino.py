@@ -39,7 +39,7 @@ _NEGATIVE_KEYWORDS = [
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
-def _vivino_api(url: str, params: dict | None = None) -> dict:
+def _vivino_api(url: str, params: Optional[dict] = None) -> dict:
     resp = requests.get(url, headers=_HEADERS, params=params, timeout=12)
     resp.raise_for_status()
     time.sleep(1.0)

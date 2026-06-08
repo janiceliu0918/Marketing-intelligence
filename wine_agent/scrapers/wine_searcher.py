@@ -47,7 +47,7 @@ def _parse_price_string(raw: str) -> tuple[float, str]:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _fetch_page(url: str, params: dict | None = None) -> requests.Response:
+def _fetch_page(url: str, params: Optional[dict] = None) -> requests.Response:
     resp = requests.get(url, headers=_HEADERS, params=params, timeout=15)
     resp.raise_for_status()
     time.sleep(1.5)   # polite crawl delay

@@ -1,4 +1,5 @@
 """BC landed cost and retail price calculator for imported wine."""
+from typing import Optional
 from wine_agent.config.settings import config, ImportDutyConfig
 from wine_agent.models.wine import LandedCostBreakdown
 
@@ -22,7 +23,7 @@ def calculate_landed_cost(
     country_of_origin: str,
     bottle_size_ml: int = 750,
     bottles_per_case: int = 12,
-    duties: ImportDutyConfig | None = None,
+    duties: Optional[ImportDutyConfig] = None,
 ) -> LandedCostBreakdown:
     """
     Calculate the fully-loaded BC landed cost from a supplier's FOB price.
@@ -87,7 +88,7 @@ def calculate_landed_cost(
 
 def add_market_comparison(
     breakdown: LandedCostBreakdown,
-    market_avg_cad: float | None,
+    market_avg_cad: Optional[float],
 ) -> LandedCostBreakdown:
     """Annotate the breakdown with a quote-vs-market signal."""
     if market_avg_cad is None or breakdown.fob_price_cad <= 0:
