@@ -4,11 +4,11 @@ import logging
 import re
 import uuid
 from typing import Optional
-import anthropic
 
 from wine_agent.config.settings import config
 from wine_agent.agent.prompts import SYSTEM_PROMPT, ANALYSIS_PROMPT
 from wine_agent.agent.tools import TOOL_DEFINITIONS, execute_tool
+from wine_agent.agent.llm_client import get_llm_client
 from wine_agent.models.wine import (
     WineIntelligenceReport, WineClassification,
     LandedCostBreakdown, ConsumerSentiment, CriticScore, PricePoint,
@@ -23,20 +23,12 @@ class WineIntelligenceAgent:
     """
     Orchestrates a multi-step agentic loop to build a WineIntelligenceReport.
 
-    Workflow:
-      1. Parse the user's query (wine name, vintage, supplier quote)
-      2. Run an agentic loop: Claude calls tools → real data is fetched → loop continues
-      3. Once Claude stops calling tools, extract structured fields from its final text
-      4. Return a WineIntelligenceReport ready for report generation
+    Supports both Groq (free) and Anthropic (paid) as the LLM backend.
+    Set LLM_PROVIDER=groq or LLM_PROVIDER=anthropic in your .env file.
     """
 
     def __init__(self) -> None:
-        if not config.anthropic_api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY is not set. "
-                "Add it to your .env file or environment variables."
-            )
-        self._client = anthropic.Anthropic(api_key=config.anthropic_api_key)
+        self._llm = get_llm_client()
 
     def analyse(
         self,
@@ -84,74 +76,50 @@ class WineIntelligenceAgent:
 
         messages: list[dict] = [{"role": "user", "content": user_content}]
         tool_results_cache: dict = {}
+        last_text = ""
 
         # ── Agentic loop ──────────────────────────────────────────────────────
         for round_num in range(MAX_AGENTIC_ROUNDS):
             logger.info("Agent round %d/%d", round_num + 1, MAX_AGENTIC_ROUNDS)
 
-            response = self._client.messages.create(
-                model=config.claude_model,
-                max_tokens=4096,
+            norm_response, raw_response = self._llm.chat_raw(
                 system=SYSTEM_PROMPT,
-                tools=TOOL_DEFINITIONS,
                 messages=messages,
+                tools=TOOL_DEFINITIONS,
+                max_tokens=4096,
             )
 
-            # Append assistant turn
-            messages.append({"role": "assistant", "content": response.content})
+            if norm_response.text:
+                last_text = norm_response.text
 
-            if response.stop_reason == "end_turn":
-                # No more tool calls — extract final narrative
+            # Append assistant turn (provider-specific message format)
+            self._llm.append_assistant_turn(messages, norm_response, raw_response)
+
+            if norm_response.stop_reason == "end_turn":
                 logger.info("Agent completed in %d round(s)", round_num + 1)
                 break
 
-            if response.stop_reason != "tool_use":
-                logger.warning("Unexpected stop_reason: %s", response.stop_reason)
+            if not norm_response.has_tool_calls:
+                logger.warning("Unexpected stop without tool calls or end_turn")
                 break
 
-            # Process tool calls and build tool_result turn
-            tool_result_blocks = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
+            # Execute tool calls and collect results
+            results: list[str] = []
+            for tc in norm_response.tool_calls:
+                tool_output = execute_tool(tc.name, tc.input)
+                tool_results_cache[tc.name] = tool_output
+                results.append(json.dumps(tool_output, default=str))
 
-                tool_output = execute_tool(block.name, block.input)
-                # Cache for building the report object later
-                tool_results_cache[block.name] = tool_output
-
-                tool_result_blocks.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": json.dumps(tool_output, default=str),
-                })
-
-            messages.append({"role": "user", "content": tool_result_blocks})
+            self._llm.append_tool_results(messages, norm_response.tool_calls, results)
 
         # ── Extract structured fields from final assistant message ─────────
-        final_text = _extract_text(messages)
-        _populate_report_from_text(report, final_text)
+        _populate_report_from_text(report, last_text)
         _populate_report_from_cache(report, tool_results_cache, supplier_quote, supplier_currency)
 
         return report
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _extract_text(messages: list[dict]) -> str:
-    """Pull the last assistant text block from the message history."""
-    for msg in reversed(messages):
-        if msg.get("role") != "assistant":
-            continue
-        content = msg.get("content", [])
-        if isinstance(content, str):
-            return content
-        for block in content:
-            if hasattr(block, "type") and block.type == "text":
-                return block.text
-            if isinstance(block, dict) and block.get("type") == "text":
-                return block.get("text", "")
-    return ""
-
 
 def _extract_section(text: str, heading: str) -> str:
     """Extract text under a markdown heading (up to the next heading)."""
